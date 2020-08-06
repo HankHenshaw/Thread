@@ -1,62 +1,56 @@
-/**
- * @file observer.h
- * @author HankHenshaw (you@domain.com)
- * @brief Определения классов наблюдателя и субъекта
- * @version 0.1
- * @date 2020-07-09
- * 
- * @copyright Copyright (c) 2020
- * 
- */
-
 #pragma once
 
+#include <iostream>
 #include <list>
 #include <stack>
 #include <queue>
 #include <memory>
+#include <typeinfo>
+#include <thread>
+#include <condition_variable>
+#include <future>
+#include <vector>
+#include <functional>
 
-/**
- * @brief Общий интерфейс для всех наблюдателей
- * 
- */
 class IObserver {
 public:
     virtual ~IObserver() {};
-    virtual void Update(std::queue<char> queue) = 0;
+    virtual void Update([[maybe_unused]]std::queue<char> queue) {};
 };
-/**
- * @brief Класс Субъекта, который оповещает своих наблюдателей
- * 
- */
-class Subject {
-    std::list<std::unique_ptr<IObserver>> m_listOfSubs2;
+
+class Subject {  
+    std::list<std::shared_ptr<IObserver>> m_listOfSubs2;
     std::list<IObserver*> m_listOfSubs;
     std::stack<char> m_stack;
     std::queue<char> m_queue;
     int m_counter;
     int m_blockSize;
     bool isNestedBlock;
+    int m_currentNumber;
+    int m_counterFile;
+    std::vector<std::thread> m_vecOfThreads;
+    bool m_isThreadInit;
 public:
-    Subject(int blockSize) : m_counter(0), m_blockSize(blockSize), isNestedBlock(false) {};
-    ~Subject() {};
+    Subject(int blockSize) : m_counter(0), m_blockSize(blockSize), isNestedBlock(false), m_currentNumber(0), m_counterFile(0),
+                             m_isThreadInit(false) {};
+    ~Subject();
 
     void AddCmd(char ch);
     void AddCmd();
-    void AddSub(std::unique_ptr<IObserver> &&sub);
-    void RemSub(std::unique_ptr<IObserver> &&sub);
+    void AddSub(std::shared_ptr<IObserver> &&sub);
+    void RemSub(std::shared_ptr<IObserver> &&sub);
     void Notify();
     size_t SizeOfSubs() const;
+
+    static int fileSubscriber;
 };
-/**
- * @brief Классы вывода команд в файл
- * 
- * название файла будет таким: bulk*.log, где * - время в формате unixtime
- */
+
+
 class FileObserver : public IObserver {
     Subject &m_subject;
+    int m_number;
 public:
-    FileObserver(Subject &sub) : m_subject(sub) {}
+    FileObserver(Subject &sub) : m_subject(sub), m_number(Subject::fileSubscriber + 1) {}
 
     virtual void Update(std::queue<char> queue) override;
     virtual ~FileObserver() {};
@@ -65,10 +59,7 @@ public:
     void printRestQueue(std::queue<char> &queue);
 };
 
-/**
- * @brief Класс вывода в стандартный поток
- * 
- */
+
 class CoutObserver : public IObserver {
     Subject &m_subject;
 public:
