@@ -4,9 +4,9 @@
  * @brief Реализация методов для классов субъекта и наблюдателей
  * @version 0.1
  * @date 2020-07-09
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 
 #include "observer.h"
@@ -26,45 +26,28 @@ int Subject::fileSubscriber = 0;
 void Subject::Notify()
 {
 //    std::for_each(m_listOfSubs2.begin(), m_listOfSubs2.end(), [this](const auto& sub){(*sub).Update(this->m_queue);});
-    if(!m_isThreadInit)
-    {
-        m_isThreadInit = true;
-        for(const auto& val: m_listOfSubs2)
-        {
-            if(typeid(*val).name() == typeid(FileObserver).name())
-            {
-                m_vecOfThreads.push_back(std::thread(&FileObserver::printRestQueue, dynamic_cast<FileObserver&>(*val), std::ref(m_queue)));
-            } else {
-                m_vecOfThreads.push_back(std::thread(&CoutObserver::printRestQueue, dynamic_cast<CoutObserver&>(*val), std::ref(m_queue)));
-            }
-        }
-    }
+
     bool isFileUpdate = false;
-    std::cout << "Size = " << m_listOfSubs2.size() << '\n';
     for(const auto& val: m_listOfSubs2)
     {
         if(typeid(*val).name() == typeid(FileObserver).name())
         {
-            std::cout << "File Counter:" << m_counterFile << " | " << "Current Number:" << m_currentNumber << '\n';
             if(m_counterFile == m_currentNumber)
             {
                 cv.notify_one();
-        //        (*val).Update(this->m_queue);
                 isFileUpdate = true;
             }
             ++m_currentNumber;
         } else {
-            cv.notify_one();
-        //    (*val).Update(this->m_queue);
+//            (*val).Update(this->m_queue); //TODO: Remove?
+            (*val).printRestQueue(this->m_queue); //Сделать отдельным потоком
+//            cv.notify_all();
         }
     }
 
     if(isFileUpdate) ++m_counterFile;
     m_counterFile %= Subject::fileSubscriber;
     m_currentNumber = 0;
-
-    while(!m_queue.empty()) 
-        m_queue.pop();
 }
 
 void Subject::AddSub(std::shared_ptr<IObserver> &&sub)
@@ -74,6 +57,9 @@ void Subject::AddSub(std::shared_ptr<IObserver> &&sub)
         std::cout << "File\n";
         ++Subject::fileSubscriber;
     }
+    auto obj = sub.get();
+    std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue));
+    m_vecOfThreads.emplace_back(std::move(th1));
     m_listOfSubs2.emplace_back(std::move(sub));
 }
 
@@ -90,6 +76,8 @@ void Subject::RemSub(std::shared_ptr<IObserver> &&sub)
 
 void Subject::AddCmd(char ch)
 {
+    ++m_main.m_lines; // Увеличиваем строку
+
     if(m_stack.empty() && ch == '{')
     {
         isNestedBlock = true;
@@ -107,11 +95,14 @@ void Subject::AddCmd(char ch)
         if(!m_stack.empty()) {
             m_stack.pop();
             if(m_stack.empty()) {
+                ++m_main.m_blocks; // Увеличиваем кол-во блоков
                 Notify();
             }
         }
         return;
     }
+
+    ++m_main.m_commands; // Увеличиваем комманды
     m_queue.push(ch);
 
     if(!isNestedBlock)
@@ -183,33 +174,26 @@ void FileObserver::Update(std::queue<char> queue)
 
 void FileObserver::printRestQueue(std::queue<char> &queue)
 {
-    if(queue.empty()) return;
-
-    std::cout << "Queue size = " << queue.size() << '\n';
+    std::mutex mtx;
 
     std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(Subject::fileSubscriber) + ".log");
     std::ofstream file(filename, std::ios_base::out);
 
-    std::cout << "Thread N" << std::this_thread::get_id() << " is waiting...\n";
-    while(!quit) // Поток находится тут пока мы не изменим состояние этой переменной
+    while(!quit)
     {
-        std::cout << "Thread N" << std::this_thread::get_id() << " is proccesing...\n";
         std::unique_lock<std::mutex> lk(cv_m);
         cv.wait(lk, [&queue](){return !queue.empty() || quit;});
-        while(!queue.empty())
+        if(!queue.empty())
         {
-            out_lock.lock();
-            file << queue.front();
-            out_lock.unlock();
+            int val = queue.front();
             queue.pop();
             lk.unlock();
-        }
-        out_lock.lock();
-        file << '\n';
-        out_lock.unlock();
-    }
 
-    std::cout << "Thread N" << std::this_thread::get_id() << " is done...\n";
+            out_lock.lock();
+            file << fibo(val - 48) << '\n';
+            out_lock.unlock();
+        }
+    }
 
     file.close();
 }
@@ -221,12 +205,26 @@ void CoutObserver::Update(std::queue<char> queue)
 
 void CoutObserver::printRestQueue(std::queue<char> &queue)
 {
-    if(queue.empty()) return;
-
-    while(!queue.empty())
+    if(!queue.empty())
     {
-        std::cout << queue.front();
-        queue.pop();
+        int val = queue.front() - 48;
+        out_lock.lock();
+        std::cout << fact(val) << '\n';
+        out_lock.unlock();
     }
-    std::cout << '\n';
+}
+
+size_t fibo(size_t val)
+{
+    if(!val) return 0;
+    if(val == 1) return 1;
+    if(val > 44) throw std::invalid_argument("val > 44 can't be stored in unsigned int");
+    return fibo(val - 1) + fibo(val - 2);
+}
+
+size_t fact(size_t val)
+{
+    if(!val || val == 1) return 1;
+    if(val > 12) throw std::invalid_argument("val > 12 can't be stored in unsigned int");
+    return val*fact(val - 1);
 }
