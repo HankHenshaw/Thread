@@ -30,7 +30,7 @@ int main(int argc, char* argv[])
     char ch;
     while(1)
     {
-        std::cin >> ch;
+        std::cin >> ch; //TODO: Вынести в блок условия
         if(ch == '!') break;
         std::this_thread::sleep_for(1s);
         subj.AddCmd(ch);

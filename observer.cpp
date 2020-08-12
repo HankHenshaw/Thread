@@ -16,6 +16,11 @@
 #include <fstream>
 #include <string>
 
+//1 - Консольный поток не должен изменять состояние очереди?
+//2 - При таком строении методов, консольный поток должен вызываться 1-ым - тут-то проблема и кроется
+//3 - Если нотофицировать 1 поток когда объект является консольным выводом, то консольный поток может не прбудиться
+//4 - Если нотофицировать все - то п.2
+
 std::condition_variable cv;
 std::atomic_bool quit = false;
 std::mutex cv_m;
@@ -78,29 +83,30 @@ void Subject::AddCmd(char ch)
 {
     ++m_main.m_lines; // Увеличиваем строку
 
-    if(m_stack.empty() && ch == '{')
-    {
-        isNestedBlock = true;
-        m_counter = 0;
-        m_stack.push(ch);
-        Notify();
-        return;
-    } else if(ch == '{') {
-        m_stack.push(ch);
-        isNestedBlock = true;
-        m_counter = 0;
-        return;
-    } else if(ch == '}') {
-        isNestedBlock = false;
-        if(!m_stack.empty()) {
-            m_stack.pop();
-            if(m_stack.empty()) {
-                ++m_main.m_blocks; // Увеличиваем кол-во блоков
-                Notify();
-            }
-        }
-        return;
-    }
+    // Временно не используется
+    // if(m_stack.empty() && ch == '{')
+    // {
+    //     isNestedBlock = true;
+    //     m_counter = 0;
+    //     m_stack.push(ch);
+    //     Notify();
+    //     return;
+    // } else if(ch == '{') {
+    //     m_stack.push(ch);
+    //     isNestedBlock = true;
+    //     m_counter = 0;
+    //     return;
+    // } else if(ch == '}') {
+    //     isNestedBlock = false;
+    //     if(!m_stack.empty()) {
+    //         m_stack.pop();
+    //         if(m_stack.empty()) {
+    //             ++m_main.m_blocks; // Увеличиваем кол-во блоков
+    //             Notify();
+    //         }
+    //     }
+    //     return;
+    // }
 
     ++m_main.m_commands; // Увеличиваем комманды
     m_queue.push(ch);
@@ -130,8 +136,8 @@ size_t Subject::SizeOfSubs() const
 
 Subject::~Subject()
 {
-    cv.notify_all();
     quit = true;
+    cv.notify_all();
     for(auto&& val: m_vecOfThreads)
     {
         val.join();
@@ -174,8 +180,6 @@ void FileObserver::Update(std::queue<char> queue)
 
 void FileObserver::printRestQueue(std::queue<char> &queue)
 {
-    std::mutex mtx;
-
     std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(Subject::fileSubscriber) + ".log");
     std::ofstream file(filename, std::ios_base::out);
 
