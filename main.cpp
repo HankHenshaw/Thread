@@ -23,23 +23,21 @@ int main(int argc, char* argv[])
 
     Subject subj(size);
 
-    subj.AddSub(std::make_shared<CoutObserver>(subj)); //TODO: Проверить можно ли использовать unique_ptr
     subj.AddSub(std::make_shared<FileObserver>(subj));
     subj.AddSub(std::make_shared<FileObserver>(subj));
+    subj.AddSub(std::make_shared<CoutObserver>(subj));
 
     char ch;
+    std::cout << "Enter: ";
     while(1)
     {
-        std::cin >> ch; //TODO: Вынести в блок условия
-        if(ch == '!') break;
+        std::cin >> ch;
+        if(ch == '!') break; //TODO: Разобраться с этим(по идеи просто в условии прописать std::cin >> ch
+        //TODO: Возможность устанавливать размер считываемого блока
         std::this_thread::sleep_for(1s);
         subj.AddCmd(ch);
     }
-    std::cout << "Lines = " << subj.m_main.m_lines << '\n';
-    std::cout << "Commands = " << subj.m_main.m_commands << '\n';
-    std::cout << "Blocks = " << subj.m_main.m_blocks << '\n';
+
     std::cout << "Done!\n";
-//    std::this_thread::sleep_for(1s);
-//    subj.AddCmd();
     return 0;
 }

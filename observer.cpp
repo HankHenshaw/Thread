@@ -1,14 +1,3 @@
-/**
- * @file observer.cpp
- * @author HankHenshaw (you@domain.com)
- * @brief Реализация методов для классов субъекта и наблюдателей
- * @version 0.1
- * @date 2020-07-09
- *
- * @copyright Copyright (c) 2020
- *
- */
-
 #include "observer.h"
 #include <iostream>
 #include <chrono>
@@ -16,54 +5,33 @@
 #include <fstream>
 #include <string>
 
-//1 - Консольный поток не должен изменять состояние очереди?
-//2 - При таком строении методов, консольный поток должен вызываться 1-ым - тут-то проблема и кроется
-//3 - Если нотофицировать 1 поток когда объект является консольным выводом, то консольный поток может не прбудиться
-//4 - Если нотофицировать все - то п.2
-
 std::condition_variable cv;
 std::atomic_bool quit = false;
 std::mutex cv_m;
 std::mutex out_lock;
 
+std::atomic_bool isCoutGetQueue = false;
+std::atomic_bool isName = false; // TODO: Rename
+
+std::atomic_int fileThreadId = 0;
+
 int Subject::fileSubscriber = 0;
+std::unordered_map<std::string, Metrics> Subject::m_metrics;
 
-void Subject::Notify()
-{
-//    std::for_each(m_listOfSubs2.begin(), m_listOfSubs2.end(), [this](const auto& sub){(*sub).Update(this->m_queue);});
-
-    bool isFileUpdate = false;
-    for(const auto& val: m_listOfSubs2)
-    {
-        if(typeid(*val).name() == typeid(FileObserver).name())
-        {
-            if(m_counterFile == m_currentNumber)
-            {
-                cv.notify_one();
-                isFileUpdate = true;
-            }
-            ++m_currentNumber;
-        } else {
-//            (*val).Update(this->m_queue); //TODO: Remove?
-            (*val).printRestQueue(this->m_queue); //Сделать отдельным потоком
-//            cv.notify_all();
-        }
-    }
-
-    if(isFileUpdate) ++m_counterFile;
-    m_counterFile %= Subject::fileSubscriber;
-    m_currentNumber = 0;
-}
 
 void Subject::AddSub(std::shared_ptr<IObserver> &&sub)
 {
-    if(typeid(*sub).name() == typeid(FileObserver).name())
-    {
-        std::cout << "File\n";
-        ++Subject::fileSubscriber;
-    }
     auto obj = sub.get();
-    std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue));
+    std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue), Subject::fileSubscriber);
+
+//    if(typeid(*sub).name() == typeid(FileObserver).name())
+//    {
+//        std::cout << "File\n";
+//        ++Subject::fileSubscriber;
+//    }
+
+    ++Subject::fileSubscriber;
+
     m_vecOfThreads.emplace_back(std::move(th1));
     m_listOfSubs2.emplace_back(std::move(sub));
 }
@@ -83,65 +51,73 @@ void Subject::AddCmd(char ch)
 {
     ++m_main.m_lines; // Увеличиваем строку
 
-    // Временно не используется
-    // if(m_stack.empty() && ch == '{')
-    // {
-    //     isNestedBlock = true;
-    //     m_counter = 0;
-    //     m_stack.push(ch);
-    //     Notify();
-    //     return;
-    // } else if(ch == '{') {
-    //     m_stack.push(ch);
-    //     isNestedBlock = true;
-    //     m_counter = 0;
-    //     return;
-    // } else if(ch == '}') {
-    //     isNestedBlock = false;
-    //     if(!m_stack.empty()) {
-    //         m_stack.pop();
-    //         if(m_stack.empty()) {
-    //             ++m_main.m_blocks; // Увеличиваем кол-во блоков
-    //             Notify();
-    //         }
-    //     }
-    //     return;
-    // }
+    if(m_stack.empty() && ch == '{')
+    {
+        isNestedBlock = true; // Вложенный блок
+        m_stack.push(ch);
+        return;
+    } else if(ch == '}') {
+        if(isNestedBlock)
+        {
+            isNestedBlock = false;
+            m_stack.pop();
+            ++m_main.m_blocks;
+            cv.notify_all();
+        }
+        return;
+    } else if(ch == '{') { // Блок внутри блока не обрабатываем
+        return;
+    }
+
+    m_queue.push(ch);
+    isName = true;
+    cv.notify_all();
 
     ++m_main.m_commands; // Увеличиваем комманды
-    m_queue.push(ch);
-
-    if(!isNestedBlock)
-        ++m_counter;
-//    std::cout << "Counter = " << m_counter << '\n';
-    if((m_counter%m_blockSize == 0) && (m_stack.empty()))
-    {
-        m_counter = 0;
-        Notify();
-    }
 }
 
-void Subject::AddCmd()
-{
-    if(!m_queue.empty() && m_stack.empty())
-    {
-        Notify();
-    }
-}
 
 size_t Subject::SizeOfSubs() const
 {
     return m_listOfSubs2.size();
 }
 
+void Subject::printMetrics()
+{
+    std::cout << "Size: " << Subject::m_metrics.size() << '\n';
+    for(const auto& val: Subject::m_metrics)
+    {
+        std::cout << val.first << '\n'
+                  << "-    Commands:" << val.second.m_commands << '\n'
+                  << "-    Blocks:" << val.second.m_blocks << '\n';
+        if(val.second.m_lines)
+        {
+            std::cout << "-    Lines:" << val.second.m_lines << '\n';
+        }
+        std::cout << "\n------------------\n";
+    }
+}
+
 Subject::~Subject()
 {
     quit = true;
     cv.notify_all();
+    Subject::m_metrics.emplace(std::make_pair("Main Thread:", m_main));
     for(auto&& val: m_vecOfThreads)
     {
         val.join();
     }
+
+    printMetrics();
+}
+
+FileObserver::~FileObserver()
+{
+    std::cout << "File Thread N" << m_id+1 << '\n'
+              << "-    Commands:" << m_metric.m_commands << '\n'
+              << "-    Blocks:" << m_metric.m_blocks << '\n';
+    std::cout << "\n-------------------\n";
+    Subject::m_metrics.emplace(std::make_pair("File Thread N"+std::to_string(m_id), m_metric));
 }
 
 long FileObserver::printTime() const
@@ -151,71 +127,98 @@ long FileObserver::printTime() const
     return time;
 }
 
-void FileObserver::Update(std::queue<char> queue)
+void FileObserver::printRestQueue(std::queue<char> &queue, int id)
 {
-    printRestQueue(queue);
-}
+    m_id = id;
 
-//void FileObserver::printRestQueue(std::queue<char> &queue)
-//{
-//    if(queue.empty()) return;
-
-//    std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(m_number) + ".log");
-//    std::ofstream file(filename, std::ios_base::out);
-
-//    if(!file.is_open())
-//    {
-//        throw std::runtime_error("log file won't open");
-//    }
-
-//    while(!queue.empty())
-//    {
-//        file << queue.front();
-//        queue.pop();
-//    }
-//    file << '\n';
-
-//    file.close();
-//}
-
-void FileObserver::printRestQueue(std::queue<char> &queue)
-{
     std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(Subject::fileSubscriber) + ".log");
     std::ofstream file(filename, std::ios_base::out);
 
     while(!quit)
     {
-        std::unique_lock<std::mutex> lk(cv_m);
-        cv.wait(lk, [&queue](){return !queue.empty() || quit;});
-        if(!queue.empty())
-        {
-            int val = queue.front();
-            queue.pop();
-            lk.unlock();
+        isName = false;
+        std::unique_lock<std::mutex> lk(cv_m); // Что бы поток засыпал
+        cv.wait(lk, [&queue, &id](){return (!queue.empty() || quit) && (isCoutGetQueue || quit) && (fileThreadId%2 == id || quit);});
+        std::cout << "Fibo woke up\n";
 
-            out_lock.lock();
-            file << fibo(val - 48) << '\n';
-            out_lock.unlock();
+        if(!queue.empty() && isCoutGetQueue && fileThreadId%2 == id) // Возможно тут нужен while т.к. в последствии
+        {//тут будут не одиночные комманды, а блоки
+            ++fileThreadId;
+            isCoutGetQueue = false; // ???
+
+            while(!queue.empty())
+            {
+                ++m_metric.m_commands;
+
+                auto val = queue.front();
+                queue.pop();
+                lk.unlock(); // TODO: Comment this?
+
+//                out_lock.lock();
+//                file << fibo(val - 48) << '\n';
+                file << val << '\n';
+//                out_lock.unlock();
+            }
         }
     }
 
     file.close();
 }
 
-void CoutObserver::Update(std::queue<char> queue)
+CoutObserver::~CoutObserver()
 {
-    printRestQueue(queue);
+    std::cout << "Cout Thread" << '\n'
+              << "-    Commands:" << m_metric.m_commands << '\n'
+              << "-    Blocks:" << m_metric.m_blocks << '\n';
+    std::cout << "\n-------------------\n";
+    Subject::m_metrics.emplace(std::make_pair("Log Thread:", m_metric));
 }
 
-void CoutObserver::printRestQueue(std::queue<char> &queue)
+void CoutObserver::printRestQueue(std::queue<char> &queue, int id)
 {
-    if(!queue.empty())
+    m_id = id;
+
+    std::queue<char> tmp_queue; //Копия очереди, что бы вывести значения
+    while(!quit) // Что бы поток был внутри этого цикла пока мы не завершим ввод
     {
-        int val = queue.front() - 48;
-        out_lock.lock();
-        std::cout << fact(val) << '\n';
-        out_lock.unlock();
+        std::unique_lock<std::mutex> lk(cv_m); // Что бы поток засыпал
+        cv.wait(lk, [](){return isName || quit;}); //Пока в основной очереди не появятся эл-ты или сигнал о выходе
+
+        std::cout << "Fact woke up\n";
+
+        if(!queue.empty())
+        {
+            tmp_queue = queue; // Если проснулись то делаем копию очереди
+
+            isCoutGetQueue = true; //???
+            cv.notify_all(); //Оповещаем остальные потоки что можно работать с очередью
+
+            int size = tmp_queue.size();
+            int i = 0;
+            while (!tmp_queue.empty()) // Простой цикл для вывода всех значений очереди
+            {
+                ++m_metric.m_commands;
+                ++i;
+                if(i == size)
+                {
+                    isName = false;
+                }
+
+                auto val = tmp_queue.front();
+                tmp_queue.pop();
+
+                out_lock.lock();
+                //std::cout << fact(val - 48) << '\n';
+                std::cout << val << '\n';
+                out_lock.unlock();
+            }
+        } else {
+            isName = false;
+        }
     }
+//    out_lock.lock();
+//    std::cout << "Fact ended\n";
+//    out_lock.unlock();
 }
 
 size_t fibo(size_t val)

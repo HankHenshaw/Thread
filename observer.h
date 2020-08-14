@@ -22,8 +22,7 @@ struct Metrics {
 class IObserver {
 public:
     virtual ~IObserver() {};
-    virtual void Update(std::queue<char> queue) = 0;
-    virtual void printRestQueue(std::queue<char> &queue) = 0;
+    virtual void printRestQueue(std::queue<char> &queue, int id) = 0;
 };
 
 class Subject {
@@ -38,46 +37,48 @@ class Subject {
     int m_counterFile;
     std::vector<std::thread> m_vecOfThreads;
 
+    void printMetrics();
 public:
     Subject(int blockSize) : m_counter(0), m_blockSize(blockSize), isNestedBlock(false), m_currentNumber(0), m_counterFile(0) {};
     ~Subject();
 
     void AddCmd(char ch);
-    void AddCmd();
     void AddSub(std::shared_ptr<IObserver> &&sub);
     void RemSub(std::shared_ptr<IObserver> &&sub);
-    void Notify();
     size_t SizeOfSubs() const;
 
     Metrics m_main; //TODO Make private
+    static std::unordered_map<std::string, Metrics> m_metrics;
 
     static int fileSubscriber;
 };
 
 
 class FileObserver : public IObserver {
+    Metrics m_metric;
     Subject &m_subject;
     int m_number;
+    int m_id;
 public:
     FileObserver(Subject &sub) : m_subject(sub), m_number(Subject::fileSubscriber + 1) {}
 
-    virtual void Update(std::queue<char> queue) override;
-    virtual ~FileObserver() {};
+    virtual ~FileObserver();
 
     long printTime() const;
-    virtual void printRestQueue(std::queue<char> &queue) override;
+    virtual void printRestQueue(std::queue<char> &queue, int id) override;
 };
 
 
 class CoutObserver : public IObserver {
+    Metrics m_metric;
     Subject &m_subject;
+    int m_id;
 public:
     CoutObserver(Subject &sub) : m_subject(sub) {}
 
-    virtual void Update(std::queue<char> queue) override;
-    virtual ~CoutObserver() {};
+    virtual ~CoutObserver();
 
-    virtual void printRestQueue(std::queue<char> &queue) override;
+    virtual void printRestQueue(std::queue<char> &queue, int id) override;
 };
 
 size_t fibo(size_t val);
