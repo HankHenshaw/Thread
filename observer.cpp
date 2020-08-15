@@ -71,7 +71,12 @@ void Subject::AddCmd(char ch)
 
     m_queue.push(ch);
     isName = true;
-    cv.notify_all();
+    ++m_counter;
+    if(m_counter == m_blockSize)
+    {
+        m_counter = 0;
+        cv.notify_all();
+    }
 
     ++m_main.m_commands; // Увеличиваем комманды
 }
