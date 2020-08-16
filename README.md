@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/HankHenshaw/Thread.svg?branch=master)](https://travis-ci.org/HankHenshaw/Thread)
+
 # Thread
 
 [Observer](https://github.com/HankHenshaw/Observer) w/ thread
