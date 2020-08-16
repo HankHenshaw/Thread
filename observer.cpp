@@ -11,7 +11,7 @@ std::mutex cv_m;
 std::mutex out_lock;
 
 std::atomic_bool isCoutGetQueue = false;
-std::atomic_bool isName = false; // TODO: Rename
+std::atomic_bool isName = false;
 
 std::atomic_int fileThreadId = 0;
 
@@ -23,12 +23,6 @@ void Subject::AddSub(std::shared_ptr<IObserver> &&sub)
 {
     auto obj = sub.get();
     std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue), Subject::fileSubscriber);
-
-//    if(typeid(*sub).name() == typeid(FileObserver).name())
-//    {
-//        std::cout << "File\n";
-//        ++Subject::fileSubscriber;
-//    }
 
     ++Subject::fileSubscriber;
 
@@ -49,11 +43,11 @@ void Subject::RemSub(std::shared_ptr<IObserver> &&sub)
 
 void Subject::AddCmd(char ch)
 {
-    ++m_main.m_lines; // Увеличиваем строку
+    ++m_main.m_lines;
 
     if(m_stack.empty() && ch == '{')
     {
-        isNestedBlock = true; // Вложенный блок
+        isNestedBlock = true; 
         m_stack.push(ch);
         return;
     } else if(ch == '}') {
@@ -78,7 +72,7 @@ void Subject::AddCmd(char ch)
         cv.notify_all();
     }
 
-    ++m_main.m_commands; // Увеличиваем комманды
+    ++m_main.m_commands;
 }
 
 
@@ -142,12 +136,12 @@ void FileObserver::printRestQueue(std::queue<char> &queue, int id)
     while(!quit)
     {
         isName = false;
-        std::unique_lock<std::mutex> lk(cv_m); // Что бы поток засыпал
+        std::unique_lock<std::mutex> lk(cv_m);
         cv.wait(lk, [&queue, &id](){return (!queue.empty() || quit) && (isCoutGetQueue || quit) && (fileThreadId%2 == id || quit);});
         std::cout << "Fibo woke up\n";
 
-        if(!queue.empty() && isCoutGetQueue && fileThreadId%2 == id) // Возможно тут нужен while т.к. в последствии
-        {//тут будут не одиночные комманды, а блоки
+        if(!queue.empty() && isCoutGetQueue && fileThreadId%2 == id)
+        {
             ++fileThreadId;
             isCoutGetQueue = false; // ???
 
@@ -157,12 +151,11 @@ void FileObserver::printRestQueue(std::queue<char> &queue, int id)
 
                 auto val = queue.front();
                 queue.pop();
-                lk.unlock(); // TODO: Comment this?
+                lk.unlock();
 
-//                out_lock.lock();
-//                file << fibo(val - 48) << '\n';
-                file << val << '\n';
-//                out_lock.unlock();
+                out_lock.lock();
+                file << fibo(val-48) << '\n';
+                out_lock.unlock();
             }
         }
     }
@@ -183,24 +176,22 @@ void CoutObserver::printRestQueue(std::queue<char> &queue, int id)
 {
     m_id = id;
 
-    std::queue<char> tmp_queue; //Копия очереди, что бы вывести значения
-    while(!quit) // Что бы поток был внутри этого цикла пока мы не завершим ввод
+    std::queue<char> tmp_queue;
+    while(!quit)
     {
-        std::unique_lock<std::mutex> lk(cv_m); // Что бы поток засыпал
-        cv.wait(lk, [](){return isName || quit;}); //Пока в основной очереди не появятся эл-ты или сигнал о выходе
-
-        std::cout << "Fact woke up\n";
+        std::unique_lock<std::mutex> lk(cv_m);
+        cv.wait(lk, [](){return isName || quit;});
 
         if(!queue.empty())
         {
-            tmp_queue = queue; // Если проснулись то делаем копию очереди
+            tmp_queue = queue; 
 
-            isCoutGetQueue = true; //???
-            cv.notify_all(); //Оповещаем остальные потоки что можно работать с очередью
+            isCoutGetQueue = true; 
+            cv.notify_all(); 
 
             int size = tmp_queue.size();
             int i = 0;
-            while (!tmp_queue.empty()) // Простой цикл для вывода всех значений очереди
+            while (!tmp_queue.empty())
             {
                 ++m_metric.m_commands;
                 ++i;
@@ -213,17 +204,13 @@ void CoutObserver::printRestQueue(std::queue<char> &queue, int id)
                 tmp_queue.pop();
 
                 out_lock.lock();
-                //std::cout << fact(val - 48) << '\n';
-                std::cout << val << '\n';
+                std::cout << fact(val-48) << '\n';
                 out_lock.unlock();
             }
         } else {
             isName = false;
         }
     }
-//    out_lock.lock();
-//    std::cout << "Fact ended\n";
-//    out_lock.unlock();
 }
 
 size_t fibo(size_t val)

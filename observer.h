@@ -36,6 +36,7 @@ class Subject {
     int m_currentNumber;
     int m_counterFile;
     std::vector<std::thread> m_vecOfThreads;
+    Metrics m_main;
 
     void printMetrics();
 public:
@@ -47,7 +48,7 @@ public:
     void RemSub(std::shared_ptr<IObserver> &&sub);
     size_t SizeOfSubs() const;
 
-    Metrics m_main; //TODO Make private
+    
     static std::unordered_map<std::string, Metrics> m_metrics;
 
     static int fileSubscriber;

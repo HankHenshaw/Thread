@@ -29,13 +29,10 @@ int main(int argc, char* argv[])
 
     char ch;
     std::cout << "Enter: ";
-    while(1)
+    while(std::cin >> ch)
     {
-        std::cin >> ch;
-        if(ch == '!') break; //TODO: Разобраться с этим(по идеи просто в условии прописать std::cin >> ch
-        //TODO: Возможность устанавливать размер считываемого блока
-        std::this_thread::sleep_for(1s);
         subj.AddCmd(ch);
+        std::this_thread::sleep_for(1s);
     }
 
     std::cout << "Done!\n";
