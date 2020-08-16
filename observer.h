@@ -10,6 +10,8 @@
 #include <future>
 #include <vector>
 #include <functional>
+#include <unordered_map>
+
 
 struct Metrics {
     int m_lines;
