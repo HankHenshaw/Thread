@@ -15,16 +15,17 @@ std::atomic_bool isName = false;
 
 std::atomic_int fileThreadId = 0;
 
-int Subject::fileSubscriber = 0;
+int Subject::fileSubscriber{0};
 std::unordered_map<std::string, Metrics> Subject::m_metrics;
-
 
 void Subject::AddSub(std::shared_ptr<IObserver> &&sub)
 {
     auto obj = sub.get();
-    std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue), Subject::fileSubscriber);
 
-    ++Subject::fileSubscriber;
+    if(typeid(*sub.get()).name() == typeid(FileObserver).name())
+        ++Subject::fileSubscriber; // TODO: Увеличить только когда приходит fileObserver?
+
+    std::thread th1(&IObserver::printRestQueue, obj, std::ref(m_queue), Subject::fileSubscriber);
 
     m_vecOfThreads.emplace_back(std::move(th1));
     m_listOfSubs2.emplace_back(std::move(sub));
@@ -47,7 +48,7 @@ void Subject::AddCmd(char ch)
 
     if(m_stack.empty() && ch == '{')
     {
-        isNestedBlock = true; 
+        isNestedBlock = true;
         m_stack.push(ch);
         return;
     } else if(ch == '}') {
@@ -63,7 +64,10 @@ void Subject::AddCmd(char ch)
         return;
     }
 
+
     m_queue.push(ch);
+    
+
     isName = true;
     ++m_counter;
     if(m_counter == m_blockSize)
@@ -83,7 +87,6 @@ size_t Subject::SizeOfSubs() const
 
 void Subject::printMetrics()
 {
-    std::cout << "Size: " << Subject::m_metrics.size() << '\n';
     for(const auto& val: Subject::m_metrics)
     {
         std::cout << val.first << '\n'
@@ -112,7 +115,7 @@ Subject::~Subject()
 
 FileObserver::~FileObserver()
 {
-    std::cout << "File Thread N" << m_id+1 << '\n'
+    std::cout << "File Thread N" << m_id << '\n'
               << "-    Commands:" << m_metric.m_commands << '\n'
               << "-    Blocks:" << m_metric.m_blocks << '\n';
     std::cout << "\n-------------------\n";
@@ -130,17 +133,16 @@ void FileObserver::printRestQueue(std::queue<char> &queue, int id)
 {
     m_id = id;
 
-    std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(Subject::fileSubscriber) + ".log");
+    std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(id) + ".log");
     std::ofstream file(filename, std::ios_base::out);
 
     while(!quit)
     {
         isName = false;
         std::unique_lock<std::mutex> lk(cv_m);
-        cv.wait(lk, [&queue, &id](){return (!queue.empty() || quit) && (isCoutGetQueue || quit) && (fileThreadId%2 == id || quit);});
-        std::cout << "Fibo woke up\n";
+        cv.wait(lk, [&queue, &id](){return (!queue.empty() || quit) && (isCoutGetQueue || quit) && (fileThreadId%2 == id-1 || quit);});
 
-        if(!queue.empty() && isCoutGetQueue && fileThreadId%2 == id)
+        if(!queue.empty() && isCoutGetQueue && fileThreadId%2 == id-1)
         {
             ++fileThreadId;
             isCoutGetQueue = false; // ???

@@ -11,7 +11,7 @@
 #include <vector>
 #include <functional>
 #include <unordered_map>
-
+#include <atomic>
 
 struct Metrics {
     int m_lines;
@@ -50,7 +50,6 @@ public:
     void RemSub(std::shared_ptr<IObserver> &&sub);
     size_t SizeOfSubs() const;
 
-    
     static std::unordered_map<std::string, Metrics> m_metrics;
 
     static int fileSubscriber;
