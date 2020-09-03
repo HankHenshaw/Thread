@@ -35,14 +35,12 @@ class Subject {
     int m_counter;
     int m_blockSize;
     bool isNestedBlock;
-    int m_currentNumber;
-    int m_counterFile;
     std::vector<std::thread> m_vecOfThreads;
     Metrics m_main;
 
     void printMetrics();
 public:
-    Subject(int blockSize) : m_counter(0), m_blockSize(blockSize), isNestedBlock(false), m_currentNumber(0), m_counterFile(0) {};
+    Subject(int blockSize) : m_counter(0), m_blockSize(blockSize), isNestedBlock(false) {};
     ~Subject();
 
     void AddCmd(char ch);
@@ -59,10 +57,9 @@ public:
 class FileObserver : public IObserver {
     Metrics m_metric;
     Subject &m_subject;
-    int m_number;
     int m_id;
 public:
-    FileObserver(Subject &sub) : m_subject(sub), m_number(Subject::fileSubscriber + 1) {}
+    FileObserver(Subject &sub) : m_subject(sub) {}
 
     virtual ~FileObserver();
 

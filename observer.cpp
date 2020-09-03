@@ -135,6 +135,10 @@ void FileObserver::printRestQueue(std::queue<char> &queue, int id)
 
     std::string filename("bulk" + std::to_string(printTime()) + "_" + std::to_string(id) + ".log");
     std::ofstream file(filename, std::ios_base::out);
+    if(!file.is_open())
+    {
+        throw std::ios_base::failure("fail to open file\n");
+    }
 
     while(!quit)
     {
