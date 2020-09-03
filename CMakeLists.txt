@@ -18,7 +18,8 @@ set_target_properties(thread PROPERTIES
 )
 
 target_link_libraries(thread
-    ${CMAKE_THREAD_LIBS_INIT}
+    Threads::Threads
+#    ${CMAKE_THREAD_LIBS_INIT}
 )
 
 install(TARGETS thread RUNTIME DESTINATION bin)
