@@ -13,8 +13,9 @@ add_executable(thread observer.h observer.cpp main.cpp)
 set_target_properties(thread PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
-    COMPILE_OPTIONS "-Wall;-Wpedantic;-Wextra;-fsanitize=thread;-fno-omit-frame-pointer" 
-    LINK_OPTIONS "-fsanitize=thread;-fno-omit-frame-pointer"
+    COMPILE_OPTIONS "-Wall;-Wpedantic;-Wextra;"
+    #-fsanitize=thread;-fno-omit-frame-pointer" 
+    #LINK_OPTIONS "-fsanitize=thread;-fno-omit-frame-pointer"
 )
 
 target_link_libraries(thread
